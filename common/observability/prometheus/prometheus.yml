@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s                       # default poll frequency for every job below, unless a job overrides it
+  evaluation_interval: 15s                   # how often Prometheus checks alert rules — we have none yet, harmless default
+
+scrape_configs:                              # list of "jobs" — each job = one thing to poll for metrics
+  - job_name: 'prometheus'                   # label attached to every metric this job collects, shows up in Grafana queries
+    scrape_interval: 15s                     # redundant with global (same value) — explicit here for clarity, not required
+    static_configs:
+      - targets: ['localhost:9090']          # prometheus scraping ITSELF — correct as "localhost" since it's inside its own container
+  - job_name: 'cadvisor'                     # second job — container resource stats
+    scrape_interval: 15s                     # same note, redundant but harmless
+    static_configs:
+      - targets: ['cadvisor:8080']           # must use SERVICE NAME not localhost — cadvisor is a different container, reached via lab network DNS

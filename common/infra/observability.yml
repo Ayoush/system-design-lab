@@ -1,0 +1,26 @@
+services:                                                              # top-level key, sibling of "networks:" in base.yml
+  prometheus:                                                          # service name — becomes hostname other containers use to reach it
+    image: prom/prometheus:v2.54.1                                     # pinned version — reproducible, won't silently change later
+    ports:
+      - "9090:9090"                                                    # host:container — lets YOU browse http://localhost:9090 too
+    volumes:
+      - ./common/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro  # your scrape config, mounted read-only
+    networks:
+      - lab                                                            # joins the shared network from base.yml
+  grafana:                                                             # service name — the dashboard UI
+    image: grafana/grafana:11.1.0                                      # pinned version — same reproducibility reason
+    ports:
+      - "3000:3000"                                                    # this is the port you'll open in your browser
+    networks:
+      - lab                                                            # can now reach "prometheus:9090" by name, no IP needed
+  cadvisor:                                                            # service name — reads container stats (CPU/mem/IO) off Docker
+    image: gcr.io/cadvisor/cadvisor:v0.49.1                            # maintained repo, has arm64 build for your Mac
+    ports:
+      - "8080:8080"                                                    # cAdvisor's own raw UI, optional but useful for sanity checks
+    volumes:
+      - /:/rootfs:ro                                                   # host root fs, read-only — cAdvisor reads, never writes
+      - /var/run:/var/run:rw                                           # needs write access here to talk to the docker socket
+      - /sys:/sys:ro                                                   # kernel stats (cgroups) it reads per-container resource usage from
+      - /var/lib/docker/:/var/lib/docker:ro                            # where Docker stores container data it's inspecting
+    networks:
+      - lab                                                            # so Prometheus can later scrape it as "cadvisor:8080"

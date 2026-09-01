@@ -1,0 +1,33 @@
+# base.yml
+#
+# This file defines ONLY the shared network. No services (postgres, redis, api...)
+# live here — that's intentional. Every other compose fragment (postgres.yml,
+# redis.yml, redpanda.yml, nginx.yml...) will attach itself to this same network.
+# That's how "add a cache" later becomes "include one more -f file" instead of
+# rewriting networking every time.
+
+# Top-level YAML key. In Docker Compose, "networks:" declares one or more
+# virtual networks that containers can be placed on. Containers on the same
+# network can reach each other using their service name as a hostname
+# (e.g. a future "api" container can just call "postgres:5432", no IP needed).
+networks:
+
+  # This is OUR name for the network, used INSIDE compose files to refer to it
+  # (e.g. every service will list "networks: [lab]" to join it).
+  lab:
+
+    # "name:" pins the ACTUAL Docker network name to something fixed.
+    # Without this, Compose auto-generates a name like "<folder>_lab", and
+    # that folder-based prefix changes depending on which directory you run
+    # `docker compose` from. Since we'll run compose from different system
+    # folders (systems/01-flashsale, systems/02-..., etc.) but always want
+    # them able to share this one network, we lock the real name here so
+    # it's always exactly "lab-net" no matter where the command runs from.
+    name: lab-net
+
+    # "driver: bridge" is Docker's standard local network type — an isolated
+    # virtual network on this machine, with its own private IP range,
+    # NAT'd out to the internet if a container needs it. This is the normal
+    # default for anything running on one host (which is our whole setup —
+    # no multi-machine networking needed here).
+    driver: bridge
