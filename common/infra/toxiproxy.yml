@@ -1,0 +1,19 @@
+services:
+  toxiproxy:                                                           # network fault injector — sits between your app and its dependencies
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    ports:
+      - "8474:8474"                                                    # its HTTP control API — chaos scripts POST/DELETE toxics here
+      - "20000-20010:20000-20010"                                      # range of PROXY listen ports we'll register (postgres, redis, ...)
+    networks:
+      - lab
+    # No healthcheck here on purpose: this image has NO SHELL at all
+    # (minimal/distroless build), so CMD-SHELL-style checks fail with
+    # "exec: /bin/sh: no such file or directory" even though the service
+    # itself is fine. Nothing else `depends_on: condition: service_healthy`
+    # against toxiproxy, so this doesn't block anything — verify it's up
+    # with `curl http://localhost:8474/version` instead.
+    #
+    # Toxiproxy does nothing by itself until PROXIES are registered against
+    # it (e.g. "listen on :20000, forward to postgres:5432, inject faults
+    # here"). See common/chaos/toxiproxy-init.sh — run once after this
+    # container is up, before your app is configured to connect through it.

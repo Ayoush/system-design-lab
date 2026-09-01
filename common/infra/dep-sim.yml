@@ -1,0 +1,13 @@
+services:
+  dep-sim:                                                             # fake external dependency (payment/email/SMS/anything third-party)
+    build:
+      context: ./common/services/dep-sim                               # OUR code, so "build:" not "image:" — no third-party image exists for this
+    ports:
+      - "4000:4000"
+    networks:
+      - lab
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:4000/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

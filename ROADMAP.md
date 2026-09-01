@@ -411,22 +411,27 @@ Every row: hypothesis → prediction (written first) → measurement → diagnos
 
 ## 11. Milestones
 
-| M | Deliverable | Est. | Done when |
-|---|---|---|---|
-| **M0** | OrbStack + k6 + psql installed, VM at 6cpu/8gb; plan copied to Desktop + lab root | 0.5d | `lab setup` passes all checks |
-| **M1** | Repo skeleton, pnpm workspace, compose fragments, 3 profiles, `lab` CLI, **full observability stack** | 2d | `lab up` brings up Grafana with live container metrics |
-| **M2** | `dep-sim` service + k6 library (open-loop, zipf popularity, 6 profiles) + experiment/ADR templates | 1.5d | `lab load` produces a p99 graph in Grafana |
-| **M3** | FlashSale v0 + seed + EXP-001…004 | 2d | oversell reproduced and logged; baseline recorded |
-| **M4** | v1 — LB, replicas, `ConnectionPool`, `HealthCheck` + EXP-005…008 | 2d | bottleneck migration demonstrated with before/after |
-| **M5** | v2 — replica + `ReadWriteRouter` + EXP-009…011 | 1.5d | stale read reproduced, then fixed |
-| **M6** | v3 — cache, `Singleflight`, `LruL1`, `CircuitBreaker` + EXP-012…017 | 2.5d | stampede reproduced and mitigated, measured |
-| **M7** | v4 — queue, workers, `RetryPolicy`, `IdempotencyStore`, DLQ, `PriorityQueue`, `TokenBucket` + EXP-018…027 | 4d | retry storm reproduced; double-charge reproduced then eliminated |
-| **M8** | v5 — three inventory strategies benchmarked, `InventoryReservation`, partitioning + EXP-028…030 | 2.5d | oversell = 0 under 1000-way contention, with throughput numbers for all 3 strategies |
-| **M9** | v6 — Redpanda, `Outbox`, partitioning, consumer groups + EXP-031…036 | 3d | dual-write loss reproduced, then fixed with outbox |
-| **M10** | v7 — fault catalog, chaos driver, Incident Engine, scorecard + EXP-037…042 | 3d | you can run a blind drill on yourself and score it |
-| **M11** | **Harvest** — extract everything reusable into `common/`, write `00-TEMPLATE`, scaffold system 02 | 1.5d | `lab new url-shortener` produces a runnable v0 in under 30 min |
+| M | Deliverable | Est. | Done when | Status |
+|---|---|---|---|---|
+| **M0** | OrbStack + k6 + psql installed, VM at 6cpu/8gb; plan copied to Desktop + lab root | 0.5d | `lab setup` passes all checks | ✅ done |
+| **M1** | Repo skeleton, pnpm workspace, compose fragments, 3 profiles, `lab` CLI, **full observability stack** | 2d | `lab up` brings up Grafana with live container metrics | ✅ done — plus postgres+replica, redis, pgbouncer, redpanda, nginx, toxiproxy all built and verified, ahead of schedule |
+| **M2** | `dep-sim` service + k6 library (open-loop, zipf popularity, 6 profiles) + experiment/ADR templates | 1.5d | `lab load` produces a p99 graph in Grafana | ✅ done — 6 profiles built, smoke-tested. Note: hot-key.js uses a simple weighted-fraction split, not a true Zipf distribution — good enough to reproduce hot-key saturation, upgrade to real Zipf later if a specific experiment needs the finer distribution shape |
+| **M3** | FlashSale v0 + seed + EXP-001…004 | 2d | oversell reproduced and logged; baseline recorded | ⬜ not started — this is the actual design work, yours |
+| **M4** | v1 — LB, replicas, `ConnectionPool`, `HealthCheck` + EXP-005…008 | 2d | bottleneck migration demonstrated with before/after | ⬜ |
+| **M5** | v2 — replica + `ReadWriteRouter` + EXP-009…011 | 1.5d | stale read reproduced, then fixed | ⬜ |
+| **M6** | v3 — cache, `Singleflight`, `LruL1`, `CircuitBreaker` + EXP-012…017 | 2.5d | stampede reproduced and mitigated, measured | ⬜ |
+| **M7** | v4 — queue, workers, `RetryPolicy`, `IdempotencyStore`, DLQ, `PriorityQueue`, `TokenBucket` + EXP-018…027 | 4d | retry storm reproduced; double-charge reproduced then eliminated | ⬜ |
+| **M8** | v5 — three inventory strategies benchmarked, `InventoryReservation`, partitioning + EXP-028…030 | 2.5d | oversell = 0 under 1000-way contention, with throughput numbers for all 3 strategies | ⬜ |
+| **M9** | v6 — Redpanda, `Outbox`, partitioning, consumer groups + EXP-031…036 | 3d | dual-write loss reproduced, then fixed with outbox | ⬜ (Redpanda + console infra ready, `Outbox` LLD component not written) |
+| **M10** | v7 — fault catalog, chaos driver, Incident Engine, scorecard + EXP-037…042 | 3d | you can run a blind drill on yourself and score it | 🟡 partial — reusable fault library + `lab break`/`lab heal` built and verified (kill/pause/db-latency/cache-outage/dep-fail/connection-exhaust). Incident Engine (hidden root cause + timer + scorecard) is FlashSale-specific v7 content, not started |
+| **M11** | **Harvest** — extract everything reusable into `common/`, write `00-TEMPLATE`, scaffold system 02 | 1.5d | `lab new url-shortener` produces a runnable v0 in under 30 min | ✅ effectively done early — `common/` was built framework-first, and `lab new` is tested working (see README pitfalls log) |
 
-**M11 is the most important milestone.** The framework isn't proven until the second system uses it without modification. Do not skip it, and do not start system 02 before it.
+**M11 was pulled forward.** Since the framework was built before FlashSale
+instead of after, "extract what's reusable" wasn't needed — everything in
+`common/` was written reusable from the start. What remains from the
+original M11 intent: once FlashSale is actually built (M3-M10), watch for
+anything you had to bend `common/` to fit, and fix `common/` itself rather
+than special-casing FlashSale.
 
 ---
 

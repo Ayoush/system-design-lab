@@ -1,0 +1,41 @@
+services:
+  postgres:                                                            # primary database — every system's source of truth
+    image: postgres:16.4-alpine                                        # pinned, small alpine variant
+    environment:
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: lab
+      POSTGRES_DB: lab
+    command: >
+      postgres
+      -c max_connections=${PG_MAX_CONNECTIONS:-20}
+      -c shared_buffers=${PG_SHARED_BUFFERS:-8MB}
+      -c work_mem=${PG_WORK_MEM:-64kB}
+      -c wal_level=replica
+      -c max_wal_senders=5
+      -c max_replication_slots=5
+      -c hot_standby=on
+    # wal_level/max_wal_senders/replication_slots are harmless when no replica
+    # exists — they just make replication POSSIBLE. Actual replica setup is
+    # in postgres-replica.yml, added only when an experiment needs it.
+    ports:
+      - "5432:5432"                                                    # lets you `psql -h localhost` from your Mac to inspect directly
+    volumes:
+      - postgres-data:/var/lib/postgresql/data                         # NAMED volume, not a bind mount — macOS bind-mount I/O is bad, pollutes measurements
+      - ./common/infra/postgres/init-replication.sh:/docker-entrypoint-initdb.d/init-replication.sh:ro
+      # ^ runs once on first boot only: creates a replication role + allows the replica to connect.
+      #   Harmless if no replica ever attaches.
+    networks:
+      - lab
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab -d lab"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "${PG_CPUS:-0.5}"                                      # Compose v2 enforces this even without swarm
+          memory: "${PG_MEM:-256m}"
+
+volumes:
+  postgres-data:                                                       # declared here since this fragment owns it; wiped by `lab reset`

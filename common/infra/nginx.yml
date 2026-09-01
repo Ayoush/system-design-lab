@@ -1,0 +1,18 @@
+services:
+  nginx:                                                               # load balancer / reverse proxy — the system's public entrypoint
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"                                                      # every system's k6 load tests point at localhost:8080 by convention
+    networks:
+      - lab
+    # No volumes here on purpose. Each SYSTEM's own infra overlay (e.g.
+    # systems/01-flashsale/infra/v1.yml) re-declares this SAME service name
+    # "nginx" with its own "volumes:" entry mounting that system's nginx.conf.
+    #
+    # Why this works: when you stack multiple -f files and the same service
+    # name appears in more than one, Compose MERGES them (list fields like
+    # volumes/ports get concatenated, not replaced) rather than the later
+    # file completely overriding the earlier one. So this file defines the
+    # generic shape, the system file adds what's system-specific, and
+    # `docker compose -f nginx.yml -f systems/01-flashsale/infra/v1.yml`
+    # ends up with one complete nginx service.

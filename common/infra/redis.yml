@@ -1,0 +1,18 @@
+services:
+  redis:                                                               # cache layer — EXP-012 through EXP-017
+    image: redis:7.4-alpine
+    command: >
+      redis-server
+      --maxmemory ${REDIS_MAXMEM:-8mb}
+      --maxmemory-policy allkeys-lru
+    # small maxmemory + LRU eviction is the whole point: makes eviction
+    # storms and hot-key saturation reachable on a laptop, on purpose.
+    ports:
+      - "6379:6379"                                                    # lets you `redis-cli -h localhost` from your Mac
+    networks:
+      - lab
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

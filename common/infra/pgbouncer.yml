@@ -1,0 +1,25 @@
+services:
+  pgbouncer:                                                           # connection pooler sitting IN FRONT of postgres — EXP-007
+    image: edoburu/pgbouncer:v1.24.1-p1                                # actively maintained, real pinned tags (bitnami's are dead — archived)
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: lab
+      DB_PASSWORD: lab
+      DB_NAME: lab
+      POOL_MODE: transaction                                           # each transaction grabs/releases a real connection — most realistic mode
+      MAX_CLIENT_CONN: 200                                             # how many app-side connections pgbouncer itself accepts
+      DEFAULT_POOL_SIZE: ${PGBOUNCER_POOL_SIZE:-5}                     # how many REAL postgres connections it hands out — the actual capacity dial
+      AUTH_TYPE: scram-sha-256                                         # must match postgres's actual password hash format — PG16 defaults to this, not md5
+    ports:
+      - "6432:5432"                                                    # host 6432 (5432 taken by postgres itself) → container's REAL port 5432
+    # This image hardcodes its internal listen port to 5432, mirroring
+    # postgres on purpose (so an app can point at "pgbouncer" instead of
+    # "postgres" and change nothing else). Other containers on the "lab"
+    # network must connect to it as pgbouncer:5432 — NOT :6432. Only your
+    # Mac's host side sees 6432.
+    networks:
+      - lab
+    depends_on:
+      postgres:
+        condition: service_healthy

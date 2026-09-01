@@ -1,0 +1,11 @@
+apiVersion: 1                                # provisioning config format version — fixed value
+
+providers:                                   # list of places Grafana should scan for dashboard JSON files
+  - name: 'lab-dashboards'                   # our label for this provider, shows up in Grafana's UI grouping
+    orgId: 1                                 # default Grafana org — always 1 on a fresh single-tenant instance
+    folder: ''                               # '' = dashboards land in the root folder, not a subfolder
+    type: file                               # source type — reading from mounted files, not a remote API
+    options:
+      path: /var/lib/grafana/dashboards  # deliberately NOT nested under /etc/grafana/provisioning/dashboards —
+                                          # that dir is already a separate read-only mount, and nesting a second
+                                          # mount inside an existing read-only mount fails at the OCI runtime level

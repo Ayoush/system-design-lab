@@ -11,3 +11,7 @@ scrape_configs:                              # list of "jobs" — each job = one
     scrape_interval: 15s                     # same note, redundant but harmless
     static_configs:
       - targets: ['cadvisor:8080']           # must use SERVICE NAME not localhost — cadvisor is a different container, reached via lab network DNS
+  - job_name: 'dep-sim'                      # third job — only alive once dep-sim.yml fragment is included; harmless "down" otherwise
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['dep-sim:4000']

@@ -1,0 +1,9 @@
+apiVersion: 1                                # provisioning config format version Grafana expects — fixed value, not ours to change
+
+datasources:                                 # list of datasources Grafana should auto-configure on startup
+  - name: Prometheus                         # display name shown inside Grafana's UI
+    uid: prometheus                          # fixed internal ID — without this Grafana auto-generates a random one each rebuild, breaking dashboard references
+    type: prometheus                         # tells Grafana which query engine/protocol to use
+    access: proxy                            # Grafana's backend calls Prometheus server-side (not your browser directly) — standard, avoids CORS issues
+    url: http://prometheus:9090              # service name, not localhost — same reason as the cadvisor scrape target: separate container, reached via lab network DNS
+    isDefault: true                          # pre-selected datasource when building a new dashboard panel

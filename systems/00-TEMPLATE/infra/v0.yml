@@ -1,0 +1,22 @@
+# v0 — your naive, deliberately un-scaled first version. One service,
+# talking straight to whatever DB fragment v0.stack includes. Nothing
+# else. See ROADMAP.md §9-10 for how FlashSale's v0 was scoped, as an
+# example — the point of v0 is that it's SUPPOSED to be easy to break.
+#
+# Replace the empty "services: {}" below with something like:
+#
+# services:
+#   api:
+#     build:
+#       context: ./src
+#     ports:
+#       - "8080:3000"
+#     environment:
+#       DATABASE_URL: postgres://lab:lab@postgres:5432/lab
+#     networks:
+#       - lab
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+
+services: {}

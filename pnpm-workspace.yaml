@@ -1,0 +1,7 @@
+# Every system's app code, plus the shared @lab/lld component library,
+# gets linked together by pnpm so "import { RetryPolicy } from '@lab/lld'"
+# works the same way from any system folder without publishing to npm.
+packages:
+  - 'common/lld'
+  - 'common/services/*'
+  - 'systems/*'

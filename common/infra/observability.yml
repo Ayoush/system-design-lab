@@ -11,12 +11,16 @@ services:                                                              # top-lev
     image: grafana/grafana:11.1.0                                      # pinned version — same reproducibility reason
     ports:
       - "3000:3000"                                                    # this is the port you'll open in your browser
+    volumes:
+      - ./common/observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro  # auto-wires Prometheus datasource, no manual UI clicks
+      - ./common/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro     # tells Grafana where to scan for dashboard JSON files
+      - ./common/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro                            # actual dashboard JSON — unrelated path, sidesteps nested-mount issue above
     networks:
       - lab                                                            # can now reach "prometheus:9090" by name, no IP needed
   cadvisor:                                                            # service name — reads container stats (CPU/mem/IO) off Docker
     image: gcr.io/cadvisor/cadvisor:v0.49.1                            # maintained repo, has arm64 build for your Mac
     ports:
-      - "8080:8080"                                                    # cAdvisor's own raw UI, optional but useful for sanity checks
+      - "8082:8080"                                                    # cAdvisor's own raw UI (host 8082 — 8080 reserved for nginx, 8081 for redpanda-console)
     volumes:
       - /:/rootfs:ro                                                   # host root fs, read-only — cAdvisor reads, never writes
       - /var/run:/var/run:rw                                           # needs write access here to talk to the docker socket

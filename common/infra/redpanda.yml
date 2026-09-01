@@ -1,0 +1,36 @@
+services:
+  redpanda:                                                            # Kafka-API-compatible broker — EXP-031 through 036
+    image: redpandadata/redpanda:v24.2.7                               # single binary, no ZooKeeper — much lighter than real Kafka on 16GB
+    command:
+      - redpanda
+      - start
+      - --smp=1                                                        # one CPU shard — plenty for lab-scale traffic
+      - --memory=512M
+      - --overprovisioned                                              # tells redpanda "this is a small dev box," relaxes internal assumptions
+      - --node-id=0
+      - --check=false                                                  # skip production hardware checks, irrelevant here
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092                # how OTHER containers reach it — service name, not localhost
+      - --pandaproxy-addr=PLAINTEXT://0.0.0.0:8082
+      - --advertise-pandaproxy-addr=PLAINTEXT://redpanda:8082
+    ports:
+      - "9092:9092"                                                    # Kafka protocol — your app's producer/consumer connects here
+      - "9644:9644"                                                    # admin API + Prometheus metrics endpoint
+    networks:
+      - lab
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  redpanda-console:                                                    # web UI — see topics, partitions, consumer lag without the CLI
+    image: redpandadata/console:v2.7.2
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "8081:8080"
+    networks:
+      - lab
+    depends_on:
+      - redpanda

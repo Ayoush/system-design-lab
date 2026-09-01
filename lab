@@ -1,0 +1,237 @@
+#!/bin/bash
+# lab — the one command that drives this entire framework.
+# Run from anywhere; it locates the repo root itself.
+set -e
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATE_DIR="$ROOT/.lab"
+STATE_FILE="$STATE_DIR/state"
+mkdir -p "$STATE_DIR"
+
+# ---------------------------------------------------------------------------
+# state — remembers the last system/version/profile you used, so you don't
+# have to repeat "flashsale v3 nano" on every single command.
+# ---------------------------------------------------------------------------
+save_state() {
+  cat > "$STATE_FILE" <<EOF
+SYSTEM=$1
+VERSION=$2
+PROFILE=$3
+EOF
+}
+load_state() {
+  [ -f "$STATE_FILE" ] && source "$STATE_FILE" || true
+}
+
+# ---------------------------------------------------------------------------
+# stack — reads systems/<system>/infra/<version>.stack, a plain text file
+# listing one compose fragment path per line (relative to repo root), and
+# turns it into a "-f a.yml -f b.yml ..." argument list. This is what lets
+# a system declare "I need base + observability + postgres + redis" without
+# you typing all four -f flags by hand every time.
+# ---------------------------------------------------------------------------
+build_f_args() {
+  local system="$1" version="$2"
+  local stack_file="$ROOT/systems/$system/infra/$version.stack"
+  if [ ! -f "$stack_file" ]; then
+    echo "no stack file at systems/$system/infra/$version.stack" >&2
+    exit 1
+  fi
+  local args=()
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    [[ "$line" == \#* ]] && continue
+    args+=("-f" "$line")
+  done < "$stack_file"
+  echo "${args[@]}"
+}
+
+compose_cmd() {
+  local system="$1" version="$2" profile="${3:-nano}"; shift 3
+  local f_args
+  f_args=$(build_f_args "$system" "$version")
+  docker compose --project-directory "$ROOT" $f_args \
+    --env-file "$ROOT/common/infra/profiles/$profile.env" "$@"
+}
+
+# ---------------------------------------------------------------------------
+usage() {
+  cat <<'EOF'
+lab — system design lab CLI
+
+  lab setup                                    verify prerequisites
+  lab new <name>                                scaffold systems/NN-<name>/ from template
+
+  lab up <system> <version> [--profile p]       bring a system version up
+  lab down <system> [<version>]                 tear it down
+  lab reset <system> <version> [--profile p]    wipe volumes, fresh start
+  lab ps  <system> [<version>]                  show running containers
+
+  lab seed <system> [args...]                   run systems/<s>/scripts/seed.sh
+  lab load <system> <profile> [-- k6-args...]   run a k6 load profile
+  lab break <fault> [args...]                   inject a fault
+  lab heal                                      remove all active faults
+
+  lab exp start <slug>                          begin a numbered experiment
+  lab exp end                                   close it out, pull metrics
+  lab exp diff <A> <B>                          compare two experiments' results
+EOF
+}
+
+# ---------------------------------------------------------------------------
+cmd_setup() {
+  echo "== checking prerequisites =="
+  docker info >/dev/null 2>&1 && echo "[ok] docker daemon up" || { echo "[FAIL] docker daemon down — open OrbStack.app"; exit 1; }
+  command -v k6 >/dev/null 2>&1 && echo "[ok] k6 $(k6 version --short 2>/dev/null || k6 version)" || echo "[FAIL] k6 not found — brew install k6"
+  command -v psql >/dev/null 2>&1 && echo "[ok] psql $(psql --version)" || echo "[FAIL] psql not found"
+  command -v jq >/dev/null 2>&1 && echo "[ok] jq present" || echo "[FAIL] jq not found — brew install jq"
+  echo "== docker resources =="
+  docker info | grep -iE "cpus|total memory"
+}
+
+cmd_new() {
+  local name="$1"
+  [ -z "$name" ] && { echo "usage: lab new <name>"; exit 1; }
+  local n=1
+  while [ -d "$ROOT/systems"/$(printf '%02d' "$n")-* ] 2>/dev/null; do n=$((n+1)); done
+  local full="$(printf '%02d' "$n")-$name"
+  local dest="$ROOT/systems/$full"
+  cp -r "$ROOT/systems/00-TEMPLATE" "$dest"
+  # {{SYSTEM_NAME}} becomes the FULL folder name (e.g. "02-chatapp"), not the
+  # bare name — every path reference inside the template (stack files,
+  # README) needs to match the real folder on disk.
+  find "$dest" -type f -exec sed -i '' "s/{{SYSTEM_NAME}}/$full/g" {} \;
+  echo "created $dest"
+}
+
+cmd_up() {
+  local system="$1" version="$2" profile="nano"
+  shift 2 2>/dev/null || true
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --profile) profile="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  compose_cmd "$system" "$version" "$profile" up -d
+  save_state "$system" "$version" "$profile"
+  compose_cmd "$system" "$version" "$profile" ps
+}
+
+cmd_down() {
+  load_state
+  local system="${1:-$SYSTEM}" version="${2:-$VERSION}" profile="${PROFILE:-nano}"
+  compose_cmd "$system" "$version" "$profile" down
+}
+
+cmd_reset() {
+  local system="$1" version="$2" profile="${3:-nano}"
+  compose_cmd "$system" "$version" "$profile" down -v
+  compose_cmd "$system" "$version" "$profile" up -d
+  save_state "$system" "$version" "$profile"
+}
+
+cmd_ps() {
+  load_state
+  local system="${1:-$SYSTEM}" version="${2:-$VERSION}" profile="${PROFILE:-nano}"
+  compose_cmd "$system" "$version" "$profile" ps
+}
+
+cmd_seed() {
+  load_state
+  local system="${1:-$SYSTEM}"; shift || true
+  local script="$ROOT/systems/$system/scripts/seed.sh"
+  [ -f "$script" ] && bash "$script" "$@" || echo "no seed script at systems/$system/scripts/seed.sh"
+}
+
+cmd_load() {
+  load_state
+  local system="${1:-$SYSTEM}" profile="$2"; shift 2
+  local script="$ROOT/systems/$system/load/$profile.js"
+  [ -f "$script" ] || script="$ROOT/common/load/profiles/$profile.js"
+  [ -f "$script" ] || { echo "no load profile '$profile' found in system or common/"; exit 1; }
+  k6 run "$script" "$@"
+}
+
+cmd_break() {
+  local fault="$1"; shift || true
+  local script="$ROOT/common/chaos/faults/$fault.sh"
+  [ -f "$script" ] || { echo "no fault '$fault' in common/chaos/faults/"; exit 1; }
+  bash "$script" "$@"
+}
+
+cmd_heal() {
+  bash "$ROOT/common/chaos/faults/heal.sh"
+}
+
+cmd_exp() {
+  load_state
+  local sub="$1"; shift || true
+  local system="${SYSTEM:-}"
+  local exp_dir="$ROOT/systems/$system/experiments"
+  local marker="$STATE_DIR/current-exp"
+
+  case "$sub" in
+    start)
+      local slug="$1"
+      [ -z "$slug" ] && { echo "usage: lab exp start <slug>"; exit 1; }
+      mkdir -p "$exp_dir"
+      local n=1
+      while ls "$exp_dir"/EXP-$(printf '%03d' "$n")-* >/dev/null 2>&1; do n=$((n+1)); done
+      local id="EXP-$(printf '%03d' "$n")"
+      local file="$exp_dir/$id-$slug.md"
+      sed "s/{{ID}}/$id/g; s/{{SLUG}}/$slug/g; s/{{DATE}}/$(date '+%Y-%m-%d %H:%M')/g" \
+        "$ROOT/common/templates/experiment.md" > "$file"
+      echo "$id|$file|$(date +%s)" > "$marker"
+      echo "created $file"
+      echo ">>> fill in Hypothesis and Prediction BEFORE running load."
+      ;;
+    end)
+      [ -f "$marker" ] || { echo "no experiment in progress — run 'lab exp start <slug>' first"; exit 1; }
+      IFS='|' read -r id file start_ts < "$marker"
+      local end_ts=$(date +%s)
+      echo "closing $id, window ${start_ts}..${end_ts} ($(( (end_ts-start_ts) ))s)"
+      {
+        echo ""
+        echo "## Result (auto-captured $(date '+%Y-%m-%d %H:%M'))"
+        echo ""
+        echo '```'
+        echo "window: ${start_ts} -> ${end_ts}  ($(( (end_ts-start_ts) ))s)"
+        for q in 'up' 'sum(rate(container_cpu_usage_seconds_total{name!=""}[1m])) by (name)' 'container_memory_usage_bytes{name!=""}'; do
+          echo "--- $q ---"
+          curl -s "http://localhost:9090/api/v1/query?query=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$q")&time=$end_ts" \
+            | jq -c '.data.result[] | {metric: .metric, value: .value[1]}' 2>/dev/null
+        done
+        echo '```'
+      } >> "$file"
+      rm -f "$marker"
+      echo "results appended to $file"
+      ;;
+    diff)
+      local a="$1" b="$2"
+      awk '/## Result/{flag=1} flag' "$exp_dir/$a"*.md 2>/dev/null > /tmp/lab-exp-a.txt
+      awk '/## Result/{flag=1} flag' "$exp_dir/$b"*.md 2>/dev/null > /tmp/lab-exp-b.txt
+      diff -y /tmp/lab-exp-a.txt /tmp/lab-exp-b.txt || true
+      ;;
+    *)
+      echo "usage: lab exp <start|end|diff> ..."
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+cmd="$1"; shift || true
+case "$cmd" in
+  setup) cmd_setup "$@" ;;
+  new)   cmd_new "$@" ;;
+  up)    cmd_up "$@" ;;
+  down)  cmd_down "$@" ;;
+  reset) cmd_reset "$@" ;;
+  ps)    cmd_ps "$@" ;;
+  seed)  cmd_seed "$@" ;;
+  load)  cmd_load "$@" ;;
+  break) cmd_break "$@" ;;
+  heal)  cmd_heal "$@" ;;
+  exp)   cmd_exp "$@" ;;
+  *) usage ;;
+esac

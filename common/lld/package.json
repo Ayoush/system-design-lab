@@ -1,0 +1,14 @@
+{
+  "name": "@lab/lld",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test --import tsx dist-test/**/*.test.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

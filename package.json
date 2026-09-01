@@ -1,0 +1,7 @@
+{
+  "name": "system-design-lab",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local, disposable system-design lab. Break systems on purpose, learn HLD/LLD by hand.",
+  "workspaces": []
+}

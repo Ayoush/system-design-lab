@@ -1,0 +1,22 @@
+services:
+  postgres-replica:                                                    # real streaming replica, not a fake stub — for EXP-009, 010, 011
+    image: postgres:16.4-alpine                                        # must match primary's version exactly — replication requires it
+    entrypoint: ["/bin/bash", "/replica-entrypoint.sh"]                # overrides the image's default entrypoint with our clone-then-start logic
+    volumes:
+      - postgres-replica-data:/var/lib/postgresql/data                 # its OWN named volume — separate from the primary's
+      - ./common/infra/postgres/replica-entrypoint.sh:/replica-entrypoint.sh:ro
+    ports:
+      - "5433:5432"                                                    # 5433 on host, since 5432 is already taken by the primary
+    networks:
+      - lab
+    depends_on:
+      postgres:
+        condition: service_healthy                                    # never race the clone against a primary that isn't ready yet
+    deploy:
+      resources:
+        limits:
+          cpus: "${PG_CPUS:-0.5}"
+          memory: "${PG_MEM:-256m}"
+
+volumes:
+  postgres-replica-data:

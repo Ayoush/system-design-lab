@@ -1,0 +1,3 @@
+common/infra/base.yml
+common/infra/observability.yml
+systems/{{SYSTEM_NAME}}/infra/v0.yml
