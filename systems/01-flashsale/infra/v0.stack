@@ -1,0 +1,5 @@
+common/infra/base.yml
+common/infra/observability.yml
+common/infra/postgres.yml
+common/infra/dep-sim.yml
+systems/01-flashsale/infra/v0.yml

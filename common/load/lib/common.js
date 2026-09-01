@@ -11,6 +11,16 @@ export function targetUrl() {
   return __ENV.TARGET_URL || 'http://localhost:8080';
 }
 
+// A syntactically-valid UUID from a plain number (VU id, iter count, ...).
+// Not a real v4 UUID (doesn't set version/variant bits correctly) — just
+// needs to satisfy Postgres's uuid column type, which only checks the
+// 8-4-4-4-12 hex shape, not RFC 4122 compliance. Deterministic per input,
+// so re-running with the same seed hits the same fake user every time.
+export function fakeUuid(n) {
+  const h = Math.abs(Math.trunc(n)).toString(16).padStart(12, '0').slice(-12);
+  return `00000000-0000-4000-8000-${h}`;
+}
+
 // Standard thresholds every profile should at least consider — not
 // enforced globally since each experiment's SLO differs, but this is the
 // shape to copy into a system's own k6 script.

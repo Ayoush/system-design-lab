@@ -2,6 +2,16 @@ global:
   scrape_interval: 15s                       # default poll frequency for every job below, unless a job overrides it
   evaluation_interval: 15s                   # how often Prometheus checks alert rules — we have none yet, harmless default
 
+# Extension point for SYSTEM-specific scrape targets (e.g. flashsale's own
+# api service). A system mounts its own file into this path — same
+# same-service-merged-volumes trick used for nginx.conf — WITHOUT ever
+# editing this common/ file. Each mounted file needs the SAME shape as this
+# one — a top-level "scrape_configs:" key wrapping the list (verified by
+# testing; a bare list fails to parse on v2.54.1 despite what some docs
+# imply). Glob matches zero files harmlessly when no system adds one.
+scrape_config_files:
+  - /etc/prometheus/scrape-configs/*.yml
+
 scrape_configs:                              # list of "jobs" — each job = one thing to poll for metrics
   - job_name: 'prometheus'                   # label attached to every metric this job collects, shows up in Grafana queries
     scrape_interval: 15s                     # redundant with global (same value) — explicit here for clarity, not required

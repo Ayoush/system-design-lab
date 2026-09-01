@@ -236,6 +236,48 @@ plain `wrk`. See `common/playbooks/measurement-honesty.md` — coordinated
 omission is the single most common way people fool themselves in this kind
 of lab.
 
+### 14. A schema mismatch between a reusable load profile and a specific app's required fields
+`common/load/profiles/flash-sale.js`'s checkout didn't send `userId`,
+which `orders.user_id` requires `NOT NULL`. Every checkout attempt failed
+identically. **When a shared/reusable script talks to a new system for the
+first time, verify its payload shape against that system's actual schema
+before trusting a load test's results** — a shared script written before
+the schema existed is exactly where this kind of drift creeps in. Fixed by
+adding a `fakeUuid()` helper to `common/load/lib/common.js` (deterministic,
+syntactically valid, doesn't need real crypto) so any future load profile
+needing a fake user/entity id has one ready.
+
+### 15. An async Express 4 handler that throws crashes the WHOLE process, not just that request
+```
+error: null value in column "user_id" ... violates not-null constraint
+Node.js v20.20.2
+```
+Express 4 auto-catches a *synchronous* throw inside a route handler, but
+NOT a rejected promise from an `async` handler — that becomes an unhandled
+promise rejection, and Node's default behavior is to crash the process
+entirely. A single bad request can take the whole server down, not just
+fail with a 500. This is NOT one of FlashSale's 8 deliberate v0 bugs
+(those demonstrate scaling/consistency concepts) — a server that dies on
+malformed input makes every experiment unreliable, so it got fixed
+immediately: every route handler wrapped in an `asyncHandler()` utility
+(`systems/01-flashsale/src/async-handler.ts`) that forwards the rejection
+to `next(err)`, plus a catch-all error middleware in `server.ts`. **Any
+future system's Express app needs the same wrapper from day one** — this
+isn't specific to FlashSale.
+
+### 16. `scrape_config_files` needs the `scrape_configs:` wrapper key after all
+```
+cannot unmarshal !!seq into config.ScrapeConfigs
+```
+Prometheus's `scrape_config_files` extension mechanism (used so a system
+can add its own scrape target without editing `common/`) was written from
+memory as "a bare YAML list, no wrapper key" — wrong, at least on
+v2.54.1. It needs the exact same shape as the main config file: a
+top-level `scrape_configs:` key wrapping the list. Confirmed empirically
+by testing both. **When a doc/memory and the actual tool disagree, trust
+a live test over recollection** — this is why every fragment in this repo
+that touches a real external tool got booted and checked, not just written.
+
 ---
 
 ## Conventions

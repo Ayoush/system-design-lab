@@ -1,0 +1,11 @@
+# Picked up automatically by common/observability/prometheus/prometheus.yml's
+# scrape_config_files glob. Despite what some Prometheus docs suggest, this
+# actually DOES need the "scrape_configs:" wrapper key, same shape as the
+# main config file — a bare top-level list fails with "cannot unmarshal
+# !!seq into config.ScrapeConfigs" on Prometheus v2.54.1. Verified by
+# testing both ways.
+scrape_configs:
+  - job_name: 'flashsale-api'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['api:3000']

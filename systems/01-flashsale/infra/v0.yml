@@ -1,0 +1,32 @@
+services:
+  api:                                                                 # the naive v0 app — see src/ and docs/hld/v0.md for what's deliberately wrong
+    build:
+      context: ./systems/01-flashsale/src
+    ports:
+      - "8080:3000"                                                    # 8080 is the lab-wide convention — k6 profiles default to this
+    environment:
+      DATABASE_URL: postgres://lab:lab@postgres:5432/lab
+      DEP_SIM_URL: http://dep-sim:4000
+    networks:
+      - lab
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dep-sim:
+        condition: service_healthy
+
+  # Adds THIS system's scrape target to the shared prometheus service
+  # WITHOUT editing common/observability/prometheus.yml — same
+  # same-service-merged-volumes trick used for nginx.conf. Requires
+  # prometheus.yml's scrape_config_files glob (already wired in common/).
+  prometheus:
+    volumes:
+      - ./systems/01-flashsale/infra/prometheus-scrape.yml:/etc/prometheus/scrape-configs/flashsale.yml:ro
+
+  # Same trick again for grafana: drop this system's dashboard JSON into
+  # its own subfolder under /var/lib/grafana/dashboards, a SIBLING of
+  # common's "common" subfolder (not nested inside an existing read-only
+  # mount — see README.md pitfall #5 for why nesting breaks).
+  grafana:
+    volumes:
+      - ./systems/01-flashsale/infra/grafana-dashboard.json:/var/lib/grafana/dashboards/flashsale/flashsale-api-latency.json:ro
